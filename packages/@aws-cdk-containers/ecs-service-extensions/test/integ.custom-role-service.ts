@@ -13,7 +13,7 @@ const environment = new Environment(stack, 'production');
 const taskRole = iam.Role.fromRoleArn(
   stack,
   'Role',
-  'arn:aws:iam::123456789012:role/MyExistingRole',
+  'arn:aws:iam::12345678:role/AmazonECSTaskRole',
   {
     // Set 'mutable' to 'false' to use the role as-is and prevent adding new
     // policies to it. The default is 'true', which means the role may be
