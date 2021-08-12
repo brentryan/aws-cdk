@@ -103,4 +103,85 @@ export = {
     test.done();
   },
 
+  'should fail given mutable role is required'(test: Test) {
+    // GIVEN
+    const stack = new cdk.Stack();
+    const vpc = new ec2.Vpc(stack, 'VPC');
+    const cluster = new ecs.Cluster(stack, 'Cluster', { vpc });
+    cluster.addCapacity('DefaultAutoScalingGroup', {
+      instanceType: new ec2.InstanceType('t2.micro'),
+    });
+
+    const environment = new Environment(stack, 'production', {
+      vpc,
+      cluster,
+      capacityType: EnvironmentCapacityType.EC2,
+    });
+    const serviceDescription = new ServiceDescription();
+    const taskRole = iam.Role.fromRoleArn(
+      stack,
+      'Role',
+      'arn:aws:iam::123456789012:role/MyExistingRole',
+      {
+        // Set 'mutable' to 'false' to use the role as-is and prevent adding new
+        // policies to it. The default is 'true', which means the role may be
+        // modified as part of the deployment.
+        mutable: false,
+      },
+    );
+
+    serviceDescription.add(
+      new Container({
+        cpu: 256,
+        memoryMiB: 512,
+        trafficPort: 80,
+        image: ecs.ContainerImage.fromRegistry('nathanpeck/name'),
+      }),
+    );
+
+    new Service(stack, 'my-service', {
+      environment,
+      serviceDescription,
+      taskRole,
+    });
+
+    // THEN
+    expect(stack).to(countResources('AWS::ECS::Service', 1));
+
+    expect(stack).to(
+      haveResource('AWS::ECS::TaskDefinition', {
+        ContainerDefinitions: [
+          {
+            Cpu: 256,
+            Essential: true,
+            Image: 'nathanpeck/name',
+            Memory: 512,
+            Name: 'app',
+            PortMappings: [
+              {
+                ContainerPort: 80,
+                Protocol: 'tcp',
+              },
+            ],
+            Ulimits: [
+              {
+                HardLimit: 1024000,
+                Name: 'nofile',
+                SoftLimit: 1024000,
+              },
+            ],
+          },
+        ],
+        Cpu: '256',
+        Family: 'myservicetaskdefinition',
+        Memory: '512',
+        NetworkMode: 'awsvpc',
+        RequiresCompatibilities: ['EC2', 'FARGATE'],
+        TaskRoleArn: 'arn:aws:iam::123456789012:role/MyExistingRole',
+      }),
+    );
+
+    test.done();
+  },
+
 };
